@@ -310,6 +310,8 @@ function card(name, desc) {
 function mount(root, ctx) {
   const st = () => ctx.getState();
   const summary = el('div', 'ab-sum');
+  const sumLines = [el('div'), el('div'), el('div')];
+  summary.append(...sumLines);
   const speedCard = card('Speed', 'Faster autobuyers. Costs points. Points come from grains. Your grains stay.');
   speedCard.classList.add('ab-speed');
   const speedBtn = button('Faster', () => buySpeed(st()));
@@ -353,11 +355,9 @@ function mount(root, ctx) {
     const act = activeIds(s);
     const slots = slotCount(s);
     const next = condensesToNextSlot(s);
-    summary.replaceChildren(
-      el('div', '', `Slots: ${act.length} of ${slots} in use.`),
-      el('div', '', next > 0 ? `Next slot after ${next} more condenses.` : 'All slots open.'),
-      el('div', '', `Order matters. The top autobuyer spends first. Interval: ${intervalOf(s).toFixed(2)} s.`),
-    );
+    sumLines[0].textContent = `Slots: ${act.length} of ${slots} in use.`;
+    sumLines[1].textContent = next > 0 ? `Next slot after ${next} more condenses.` : 'All slots open.';
+    sumLines[2].textContent = `Order matters. The top autobuyer spends first. Interval: ${intervalOf(s).toFixed(2)} s.`;
     const maxed = fs.speed >= SPEED_MAX;
     speedCard.querySelector('.stat').textContent = `Level ${fs.speed} of ${SPEED_MAX}. Points: ${points(s)}.`;
     speedBtn.disabled = maxed || points(s) < speedCost(s);
@@ -377,6 +377,7 @@ function mount(root, ctx) {
       r.toggle.disabled = !open || (!on && act.length >= slots);
       r.toggle.textContent = on ? 'On' : 'Off';
       r.toggle.classList.toggle('is-on', on);
+      r.toggle.setAttribute('aria-pressed', String(on));
       r.reserve.disabled = !open;
       setSelect(r.reserve, fs.reserve[def.id]);
       r.stat.textContent = open
@@ -388,6 +389,7 @@ function mount(root, ctx) {
     ccToggle.disabled = !open;
     ccToggle.textContent = fs.cond.on ? 'On' : 'Off';
     ccToggle.classList.toggle('is-on', fs.cond.on);
+    ccToggle.setAttribute('aria-pressed', String(fs.cond.on));
     ccMin.disabled = !open;
     setSelect(ccMin, fs.cond.min);
     cc.querySelector('.stat').textContent = open
@@ -405,5 +407,6 @@ G.registerFeature({
   onCondense,
   offline,
   onReturn,
-  ui: { title: 'Autobuyers', order: 40, css: CSS, mount },
+  // Shown from the first condense on, so the first minutes stay simple.
+  ui: { title: 'Autobuyers', order: 40, css: CSS, mount, visible: (s) => s.unlocked.condense || s.condenses > 0 },
 });

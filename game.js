@@ -51,7 +51,14 @@ export const registerFeature = (f) => {
   features.push(f);
 };
 export const getFeatures = () => features;
-const hook = (name, ...args) => features.map((f) => f[name]?.(...args)).filter((x) => x !== undefined);
+// Multiplier hooks of a feature marked `pauseInChallenge: true` are skipped while a challenge runs,
+// so permanent progress (landmarks, lattice) cannot make the fixed kg targets trivial.
+const MULT_HOOKS = new Set(['globalMult', 'genMult', 'tapMult', 'costMult', 'autoTaps']);
+const hook = (name, s, ...args) =>
+  features
+    .filter((f) => !(f.pauseInChallenge && MULT_HOOKS.has(name) && s.f.challenges?.active))
+    .map((f) => f[name]?.(s, ...args))
+    .filter((x) => x !== undefined);
 
 // Transient messages for the UI (toasts). Not saved.
 export const notify = (s, text) => s.notes.push(text);
@@ -68,6 +75,7 @@ export function newState(now = Date.now()) {
     unlocked: { condense: false },
     f: Object.fromEntries(features.map((f) => [f.id, f.init ? f.init() : {}])),
     notes: [],
+    flow: ZERO, // every dust ever gained in this session, across condenses. Not saved.
     savedAt: now,
   };
 }
@@ -123,6 +131,7 @@ export function dustPerSecond(s) {
 function gain(s, amount) {
   s.dust = add(s.dust, amount);
   s.run = add(s.run, amount);
+  s.flow = add(s.flow, amount);
 }
 
 // Public so features can pay out dust (it counts toward the run total too).
@@ -158,17 +167,20 @@ export function advance(s, seconds, maxSteps = 20000) {
 }
 
 // Time away from the game. Features can scale it through f.offline(s, seconds), which returns
-// the effective seconds to simulate, and react afterwards through f.onReturn(s, seconds, effective).
+// the effective seconds to simulate. Each feature gets the result of the one before it. They react
+// afterwards through f.onReturn(s, seconds, effective, gained), where gained is all dust made,
+// even across condenses.
 export const OFFLINE_CAP_S = 12 * 3600;
 export function applyOffline(s, seconds) {
   const away = Math.min(OFFLINE_CAP_S, seconds);
   if (!(away > 0)) return { away: 0, gained: ZERO };
   let effective = away;
-  for (const x of hook('offline', s, away)) effective = x;
-  const before = s.dust;
+  for (const f of features) if (f.offline) effective = f.offline(s, effective) ?? effective;
+  const before = s.flow;
   advance(s, effective);
-  hook('onReturn', s, away, effective);
-  return { away, gained: sub(s.dust, before) };
+  const gained = sub(s.flow, before);
+  hook('onReturn', s, away, effective, gained);
+  return { away, gained };
 }
 
 export const genCost = (s, k) =>
@@ -225,8 +237,12 @@ export function checkUnlocks(s) {
 
 // Grains for condensing now. Features can change the result through f.condenseGain(s, gain), which
 // returns a new Num.
+// The threshold rises with grain strength. Features add permanent strength through
+// f.condenseStrength(s), a Num that is exactly ONE when they add nothing.
 export function condenseAt(s) {
-  const u = log10(grainMult(s));
+  let m = grainMult(s);
+  for (const x of hook('condenseStrength', s)) m = mul(m, x);
+  const u = log10(m);
   return mul(CONDENSE.at, pow(n(10), CONDENSE.rise * u ** CONDENSE.curve));
 }
 

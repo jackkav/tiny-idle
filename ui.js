@@ -38,6 +38,13 @@ function toast(text) {
   setTimeout(() => el.remove(), 4000);
 }
 
+// Show at most 3 messages at once. A long catch-up can post dozens.
+function flushNotes() {
+  const notes = state.notes.splice(0);
+  for (const t of notes.slice(0, 3)) toast(t);
+  if (notes.length > 3) toast(`and ${notes.length - 3} more`);
+}
+
 // Offline progress. The rhythm feature shows the return message (toast or
 // welcome panel) from the onReturn hook.
 {
@@ -145,6 +152,7 @@ const featureCtx = {
   dom: { tap: tapBtn, floaters: $('floaters'), body: document.body },
 };
 const featureRenders = [];
+const LATE_FROM_ORDER = 15; // sections with a lower order sit under the tap target, the rest under Methods
 for (const f of [...G.getFeatures()].filter((x) => x.ui).sort((a, b) => (a.ui.order ?? 50) - (b.ui.order ?? 50))) {
   const section = document.createElement('section');
   section.id = `feature-${f.id}`;
@@ -155,14 +163,19 @@ for (const f of [...G.getFeatures()].filter((x) => x.ui).sort((a, b) => (a.ui.or
   }
   const body = document.createElement('div');
   section.append(body);
-  $('features').append(section);
+  // Core loop first. Later systems go below Methods and Condensation.
+  $((f.ui.order ?? 50) < LATE_FROM_ORDER ? 'features' : 'features-late').append(section);
   if (f.ui.css) {
     const style = document.createElement('style');
     style.textContent = f.ui.css;
     document.head.append(style);
   }
   const r = f.ui.mount(body, featureCtx);
-  if (r) featureRenders.push(() => r(state));
+  featureRenders.push(() => {
+    // A feature can keep its section hidden until it matters (ui.visible).
+    section.hidden = f.ui.visible ? !f.ui.visible(state) : false;
+    if (r) r(state);
+  });
 }
 
 // ---- Rendering -------------------------------------------------------------
@@ -255,7 +268,7 @@ function frame(now) {
   last = now;
   if (dt > 1) G.applyOffline(state, dt);
   else if (dt > 0) G.tick(state, dt);
-  while (state.notes.length) toast(state.notes.shift());
+  if (state.notes.length) flushNotes();
   if (now - lastRender > 66) {
     lastRender = now;
     render();

@@ -106,7 +106,18 @@ export function pebbleGain(grains) {
   return N.floor(N.scale(N.pow(N.div(grains, COMPACT_AT_GRAINS), PEBBLE_EXP), PEBBLE_BASE));
 }
 
-export const canCompact = (s) => N.gte(s.grains, requirement(s.f.compaction.count)) && N.gte(pebbleGain(s.grains), N.ONE);
+// A challenge run uses bare rules, so compaction waits until it ends.
+export const canCompact = (s) =>
+  !s.f.challenges?.active &&
+  N.gte(s.grains, requirement(s.f.compaction.count)) &&
+  N.gte(pebbleGain(s.grains), N.ONE);
+
+// The part of the Deep effect that adds to the core grain multiplier: total 1 + grains x k.
+function deepPart(s) {
+  const k = effectsFor(s.f.compaction.grid).grain;
+  if (k === 1 || N.isZero(s.grains)) return N.ONE;
+  return N.div(N.add(N.ONE, N.scale(s.grains, k)), N.add(N.ONE, s.grains));
+}
 
 export function compact(s) {
   if (!canCompact(s)) return false;
@@ -181,12 +192,10 @@ G.registerFeature({
   },
   tapMult: (s) => effectsFor(s.f.compaction.grid).tap,
   genMult: (s) => effectsFor(s.f.compaction.grid).gens,
-  globalMult(s) {
-    const k = effectsFor(s.f.compaction.grid).grain;
-    if (k === 1 || N.isZero(s.grains)) return N.ONE;
-    // Core already counts 1 + grains. This adds the rest so the total is 1 + grains x k.
-    return N.div(N.add(N.ONE, N.scale(s.grains, k)), N.add(N.ONE, s.grains));
-  },
+  pauseInChallenge: true,
+  globalMult: deepPart,
+  // Lattice power makes runs shorter, so it raises the condense threshold like grains do.
+  condenseStrength: (s) => N.mul(deepPart(s), effectsFor(s.f.compaction.grid).gens),
   condenseGain: (s, gain) => N.scale(gain, effectsFor(s.f.compaction.grid).condense),
   ui: {
     title: 'Compaction',

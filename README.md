@@ -4,6 +4,8 @@ An idle game proof of concept. You start by tapping a speck worth 0.01e-99 kg (1
 
 Live: https://jackkav.github.io/tiny-idle/
 
+Taking over this project? Read `AGENTS.md` and `docs/` first. `docs/handover.md` has the state, open problems and next steps. `docs/decisions.md` has every decision and its reason.
+
 ## Run it
 
 No build step. Serve the folder with any static server and open `index.html`.
@@ -26,9 +28,15 @@ node --test
 | `game.js` | All rules and numbers: collectors, methods, condensation, save format. No DOM. |
 | `scale.js` | Real-world mass landmarks and the progress bar position. |
 | `ui.js` | DOM, input, game loop, autosave, offline progress. |
-| `features/ux.js` | Hints, settings panel, sound, tap effects, page color (DOM side). |
-| `features/ux-logic.js` | Pure rules for the above: settings, save strings, hints, color. |
-| `game.test.mjs` | Tests for our own logic. |
+| `features/milestones.js` | Real-mass landmarks, achievements, Scale panel. |
+| `features/automation.js` | Autobuyers with slots, reserves, priority, and auto-condense. |
+| `features/challenges.js` | Rule-bending challenges with permanent rewards, and run focus picks. |
+| `features/compaction.js` | Layer 3: pebbles and the pebble lattice. |
+| `features/rhythm.js`, `rhythm-ui.js` | Drifting specks, tap heat, offline curve, welcome-back panel. |
+| `features/ux.js`, `ux-logic.js` | Hints, settings, sound, tap effects, page color. Pure rules are in `ux-logic.js`. |
+| `game.test.mjs`, `features/*.test.mjs` | Tests for our own logic. `features/review-fixes.test.mjs` holds regression tests for bugs found in review. |
+| `DESIGN.md` | Research summary, the feature contract (hooks) and the ownership table. |
+| `docs/` | Handover notes, decision log, research notes. |
 | `tools/sim.mjs` | Pacing simulator with three bots. Also a command line tool. |
 | `tools/pacing.test.mjs` | Pacing checks with tolerance bands, run through the simulator. |
 
@@ -40,7 +48,13 @@ New runtime modules must be added to the copy step in `.github/workflows/pages.y
 - 6 collector tiers. Tier 1 makes dust. Each higher tier makes the tier below it. Every 10 purchases of a tier doubles its output (10 doublings at most).
 - 7 methods (upgrades): tap power, two auto-tappers, four global multipliers.
 - Condensation unlocks after you own 10 different methods or collectors. It resets dust, collectors and methods. The first grains need 1e-68 kg in one run (3 grains). Each factor of ten above that pays 2 more grains. Each grain adds +100% to all dust. The needed mass rises with your grains, so later runs stay long (see Pacing).
-- Autosave to `localStorage`, offline progress (12 hours maximum).
+- Layer 3, Compaction: unlocks at 100 grains, pays pebbles that you place in a 3x3 lattice (a puzzle you solve again after each compaction).
+- Autobuyers (limited slots, reserves, priority) and an auto-condense, unlocked by grain totals.
+- Six challenges that bend one rule each, and a pick-one-of-three focus at the start of each run.
+- 18 mass landmarks and 21 achievements with small permanent rewards.
+- A rare drifting speck to catch, a tap heat meter, and a welcome-back panel with a return bonus.
+- Hints for new players, a settings dialog (number style, sound, reduced motion, export and import), optional sound (off by default, `?mute=1` forces it off).
+- Autosave to `localStorage`, offline progress (12 hours maximum, with a falling efficiency curve).
 - `window.game` is exposed in the browser console for testing.
 
 ## Pacing
@@ -78,10 +92,6 @@ node tools/sim.mjs --help
 
 Bots: `greedy` buys the cheapest thing it can afford. `best` buys the item with the lowest score cost / income + cost / (income + gain), looking 60 seconds ahead. `idle` taps for 60 seconds at the start of each run, then does not tap. From code: `simulate({ bot, minutes, patience, tapsPerSecond, decideEvery, maxRuns, setup })` in `tools/sim.mjs`. It loads `features/index.js`, so new features are included. The bots do not use feature controls (for example automation switches). `tools/pacing.test.mjs` fails if a number leaves its band. Retune the constants above or move the band on purpose.
 
-## Ideas to define next
+## Next
 
-- Layer 3: a new currency above grains, with its own reset or its own rules.
-- Make collectors differ in kind, not only in tier (for example, collectors that need a different currency).
-- Choices that exclude each other (spend grains on one of two paths per run).
-- Give the scale bar meaning: landmarks as milestones that unlock things when you pass them.
-- Number formatting options and an export/import save string.
+See `docs/handover.md` for open problems and next steps (play on a real phone, extend the simulator to cover features, retune layer 3, define layer 4 and an ending, replace the placeholder theme).

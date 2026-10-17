@@ -26,7 +26,7 @@ export const SCALE_MAX = 54;
 // describeScale does not use them. The Scale panel and the bar ticks do.
 // The first one is the mass of a quantum whose wavelength is about the size of the universe.
 const SUB = [
-  { name: 'a quantum as wide as the universe', kg: 2e-68 },
+  { name: 'a quantum as wide as the universe', kg: 2.5e-69 },
   { name: 'the graviton mass limit', kg: 2e-58 },
   { name: 'the photon mass limit', kg: 1.8e-54 },
   { name: 'a neutrino (upper limit)', kg: 1.8e-37 },

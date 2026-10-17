@@ -32,7 +32,10 @@ function loadSettings() {
 
 function storeSettings() {
   try {
-    localStorage.setItem(SETTINGS_KEY, JSON.stringify(runtime.settings));
+    // Keep the motion choice only when it differs from the OS setting, so a later OS change still applies.
+    const out = { ...runtime.settings };
+    if (out.reducedMotion === osReducedMotion()) delete out.reducedMotion;
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify(out));
   } catch {
   }
 }
@@ -117,7 +120,7 @@ function mount(root, ctx) {
   document.addEventListener('keydown', prime);
 
   document.addEventListener('click', (e) => {
-    const b = e.target.closest?.('.buy');
+    const b = e.target.closest?.('#gens .buy, #ups .buy, #condense-body .buy');
     if (b && audible()) audio.buy();
   });
 

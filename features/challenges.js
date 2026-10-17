@@ -187,6 +187,7 @@ const freshState = (salt) => ({
   salt, // fixed per save. Keeps offers different between players but stable for one player.
   offer: null, // focus ids offered for this run, or null
   offerRun: 0, // value of s.condenses when the offer was made
+  nonce: 0, // counts offers made, so a compaction does not replay old offers
   roll: 0, // stored random number for the gamble focus
   pick: null, // picked focus id, or null
   gamble: false, // outcome of the gamble, settled at pick time
@@ -209,9 +210,9 @@ export function rng(seed) {
   };
 }
 
-// The offer depends only on stored data: the salt and the number of condenses.
-export function makeOffer(salt, condenses) {
-  const next = rng((salt >>> 0) ^ Math.imul(condenses + 1, 0x9e3779b1));
+// The offer depends only on stored data: the salt and the offer counter.
+export function makeOffer(salt, index) {
+  const next = rng((salt >>> 0) ^ Math.imul(index + 1, 0x9e3779b1));
   const ids = FOCUSES.map((f) => f.id);
   for (let i = ids.length - 1; i > 0; i--) {
     const j = Math.floor(next() * (i + 1));
@@ -224,9 +225,12 @@ const fsOf = (s) => s.f.challenges;
 export const isUnlocked = (s) => s.condenses >= UNLOCK_AFTER_CONDENSES;
 export const doneCount = (fs) => CHALLENGES.filter((c) => fs.done[c.id]).length;
 
-function newOffer(s) {
+// `again` rebuilds the offer of the current run from stored data (a damaged save). It does not use
+// a new offer index.
+function newOffer(s, again = false) {
   const fs = fsOf(s);
-  const { offer, roll } = makeOffer(fs.salt, s.condenses);
+  const index = again ? Math.max(0, fs.nonce - 1) : fs.nonce++;
+  const { offer, roll } = makeOffer(fs.salt, index);
   fs.offer = offer;
   fs.roll = roll;
   fs.offerRun = s.condenses;
@@ -293,7 +297,9 @@ export function costMultOf(s, kind, index) {
 export function startClingsOf(s) {
   const fs = fsOf(s);
   if (fs.active) return challengeDef(fs.active).seed ?? 0;
-  return activeMods(s).reduce((a, mod) => a + (mod.startClings ?? 0), 0);
+  const total = activeMods(s).reduce((a, mod) => a + (mod.startClings ?? 0), 0);
+  // A focus that turns taps off needs one free cling, or the run could never start.
+  return activeMods(s).some((mod) => mod.tap === 0) ? Math.max(1, total) : total;
 }
 
 // ---- actions ---------------------------------------------------------------
@@ -361,6 +367,8 @@ export function pickFocus(s, id) {
   const fs = fsOf(s);
   if (!isUnlocked(s) || fs.active || fs.pick || !fs.offer || !fs.offer.includes(id)) return false;
   fs.pick = id;
+  // The run already began. Make sure a focus without taps cannot leave the player with nothing.
+  if (startClingsOf(s) > 0 && N.cmp(s.gens[0].owned, N.ONE) < 0) s.gens[0].owned = N.ONE;
   if (id === 'gamble') fs.gamble = fs.roll < FOCUS_GAMBLE.chance;
   G.notify(s, `Focus: ${focusDef(id).name}${id === 'gamble' ? (fs.gamble ? '. You won.' : '. You lost.') : ''}`);
   return true;
@@ -376,6 +384,7 @@ export function loadState(saved) {
   if (!saved || typeof saved !== 'object') return fs;
   if (Number.isFinite(saved.salt)) fs.salt = saved.salt >>> 0;
   fs.offerRun = Math.max(0, saved.offerRun | 0);
+  fs.nonce = Math.max(0, Math.min(1e9, saved.nonce | 0));
   if (validOffer(saved.offer)) fs.offer = [...saved.offer];
   if (Number.isFinite(saved.roll)) fs.roll = Math.min(1, Math.max(0, saved.roll));
   if (fs.offer && typeof saved.pick === 'string' && fs.offer.includes(saved.pick)) fs.pick = saved.pick;
@@ -395,7 +404,7 @@ export const saveState = (fs) => ({ ...fs, offer: fs.offer ? [...fs.offer] : nul
 function tick(s, dt) {
   const fs = fsOf(s);
   // A save from before this feature, or with a bad offer, gets its offer rebuilt from stored data.
-  if (isUnlocked(s) && (fs.offerRun !== s.condenses || !fs.offer)) newOffer(s);
+  if (isUnlocked(s) && (fs.offerRun !== s.condenses || !fs.offer)) newOffer(s, fs.offerRun === s.condenses && fs.nonce > 0);
   if (!fs.active) fs.runTime += dt;
   checkCompletion(s);
 }
@@ -418,6 +427,7 @@ const CSS = `
 .ch-offer, .ch-list { display: grid; gap: 8px; margin-bottom: 14px; }
 .ch-sub { font-size: 13px; color: var(--muted); font-weight: 600; margin: 14px 0 6px; }
 .ch-card .actions { grid-row: 1 / span 5; }
+@media (max-width: 380px) { .ch-card .actions { grid-row: auto; } }
 .ch-card.done { border-color: var(--ok); }
 .ch-card.active { border-color: var(--accent); }
 .ch-card .state { font-size: 13px; grid-column: 1; }
@@ -505,7 +515,6 @@ function mountUi(root, ctx) {
       + '<div class="state"></div><div class="ch-bar"><div></div></div><div class="actions"></div>';
     card.querySelector('.name').textContent = c.name;
     card.querySelector('.desc').textContent = c.rule;
-    card.querySelector('.stat').textContent = `Goal: ${fmt(targetOf(c.id))} kg of dust in one run. Reward: ${c.rewardText}`;
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'buy';
@@ -524,8 +533,17 @@ function mountUi(root, ctx) {
     };
   });
 
+  let notationKey = null;
   return (s) => {
     const fs = fsOf(s);
+    // The goal text depends on the number notation, so draw it again when that changes.
+    const nk = ctx.N.getNotation?.();
+    if (nk !== notationKey) {
+      notationKey = nk;
+      for (const r of rows) {
+        r.card.querySelector('.stat').textContent = `Goal: ${fmt(targetOf(r.c.id))} kg of dust in one run. Reward: ${r.c.rewardText}`;
+      }
+    }
     const open = isUnlocked(s);
     lock.hidden = open;
     body.hidden = !open;
@@ -580,5 +598,5 @@ G.registerFeature({
   speed: speedOf,
   costMult: costMultOf,
   condenseGain: (s, gain) => (fsOf(s).active ? N.ZERO : gain),
-  ui: { title: 'Challenges and focus', order: 40, css: CSS, mount: mountUi },
+  ui: { title: 'Challenges and focus', order: 40, css: CSS, mount: mountUi, visible: (s) => isUnlocked(s) },
 });

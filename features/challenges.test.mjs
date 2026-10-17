@@ -397,7 +397,7 @@ test('the offer resets in the next condense', () => {
   G.condense(s);
   assert.equal(fsOf(s).pick, null);
   assert.equal(fsOf(s).offerRun, 2);
-  assert.deepEqual(fsOf(s).offer, C.makeOffer(fsOf(s).salt, 2).offer);
+  assert.deepEqual(fsOf(s).offer, C.makeOffer(fsOf(s).salt, fsOf(s).nonce - 1).offer);
 });
 
 // Give a state a chosen focus, bypassing the dice.

@@ -243,14 +243,29 @@ export function fmtDuration(s) {
 
 // Data for the welcome-back panel. Numbers stay as Num. This object is never saved.
 // Spending in offline steps (automation) lowers dust, so gained is measured on run.
-export function buildWelcome(away, effective, before, after) {
-  const gained = N.cmp(after.run, before.run) > 0 ? N.sub(after.run, before.run) : after.run;
+// `total` is all dust made while away, even across condenses (from the core). When it is missing,
+// fall back to the change in run dust.
+export function buildWelcome(away, effective, before, after, total) {
+  const gained = total ?? (N.cmp(after.run, before.run) > 0 ? N.sub(after.run, before.run) : after.run);
   return {
     away,
     effective,
     gained,
     dustBefore: before.dust,
     dustAfter: after.dust,
+    bonusSeconds: returnBonusSeconds(away),
+  };
+}
+
+// Two returns before the player took the panel (a hidden tab for a long time): add them up.
+export function mergeWelcome(a, b) {
+  const away = a.away + b.away;
+  return {
+    away,
+    effective: a.effective + b.effective,
+    gained: N.add(a.gained, b.gained),
+    dustBefore: a.dustBefore,
+    dustAfter: b.dustAfter,
     bonusSeconds: returnBonusSeconds(away),
   };
 }
@@ -325,14 +340,14 @@ G.registerFeature({
     fs.before = { run: s.run, dust: s.dust };
     return offlineEffective(away);
   },
-  onReturn(s, away, effective) {
+  onReturn(s, away, effective, total) {
     const fs = s.f.rhythm;
     fs.catchingUp = false;
     const before = fs.before ?? { run: s.run, dust: s.dust };
     fs.before = null;
     if (away < TOAST_MIN_AWAY_S) return;
-    const w = buildWelcome(away, effective, before, { run: s.run, dust: s.dust });
-    if (away >= PANEL_MIN_AWAY_S) fs.welcome = w;
+    const w = buildWelcome(away, effective, before, { run: s.run, dust: s.dust }, total);
+    if (away >= PANEL_MIN_AWAY_S) fs.welcome = fs.welcome ? mergeWelcome(fs.welcome, w) : w;
     else G.notify(s, `Back after ${fmtDuration(away)}. +${N.fmt(w.gained)} kg.`);
   },
   ui: {

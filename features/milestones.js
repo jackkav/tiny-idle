@@ -32,6 +32,8 @@ export const REWARDS = {
 };
 
 export const ACH_BONUS = 0.01; // global bonus per achievement (fraction)
+// Safety limits. With today's rewards the combined global bonus is about x1.7 and the cost
+// discount about x0.9, so neither limit binds. They protect future reward changes.
 export const GLOBAL_CAP = 3; // the combined global multiplier from this feature never passes this
 export const COST_FLOOR = 0.5; // collector prices never drop below this share
 export const FAST_RUN_S = 60; // seconds
@@ -182,13 +184,16 @@ registerFeature({
     checkAchievements(s);
   },
 
-  onCondense(s) {
+  onCondense(s, gained) {
     const fs = s.f.milestones;
-    fs.fast = fs.fast === null ? fs.runTime : Math.min(fs.fast, fs.runTime);
+    // A compaction calls this with a zero gain. That is not a fast condense.
+    if (gained && gained.m > 0) fs.fast = fs.fast === null ? fs.runTime : Math.min(fs.fast, fs.runTime);
     fs.runTime = 0;
     checkLandmarks(s);
     checkAchievements(s);
   },
+
+  pauseInChallenge: true,
 
   globalMult(s) {
     const fs = s.f.milestones;
@@ -223,10 +228,10 @@ registerFeature({
       .ms-row .ms-mass { font-variant-numeric: tabular-nums; color: var(--muted); white-space: nowrap; }
       .ms-reward { color: var(--ok); font-size: 13px; }
       details.ms-box { margin-top: 10px; }
-      details.ms-box summary { cursor: pointer; color: var(--muted); font-size: 14px; padding: 6px 0; }
+      details.ms-box summary { cursor: pointer; color: var(--muted); font-size: 14px; min-height: 44px; display: flex; align-items: center; }
       .ms-ach { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 6px; padding-top: 6px; }
-      .ms-chip { border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px; font-size: 13px; opacity: 0.45; }
-      .ms-chip.done { opacity: 1; border-color: var(--ok); }
+      .ms-chip { border: 1px dashed var(--line); border-radius: 8px; padding: 6px 8px; font-size: 13px; color: var(--muted); }
+      .ms-chip.done { border: 1px solid var(--ok); color: var(--text); }
       .ms-chip .ms-name { font-weight: 600; }
       .ms-chip .ms-desc { color: var(--muted); font-size: 12px; }
     `,
@@ -270,6 +275,7 @@ registerFeature({
       };
 
       let drawn = -1;
+      let drawnNotation = null;
       let drawnAch = -1;
       let farEl = null;
 
@@ -315,11 +321,13 @@ registerFeature({
           }
         }
         drawn = count;
+        drawnNotation = ctx.N.getNotation?.();
       };
 
       return (s) => {
         const fs = s.f.milestones;
-        if (drawn !== fs.lm) redraw(fs.lm);
+        // Masses are drawn as text, so draw again when the number notation changes.
+        if (drawn !== fs.lm || drawnNotation !== ctx.N.getNotation?.()) redraw(fs.lm);
         if (farEl) {
           const orders = ordersTo(fs.best, LADDER[fs.lm]);
           farEl.textContent = `${orders.toFixed(1)} orders of magnitude to go. Best so far: ${ctx.fmt(fs.best, 2)} kg.`;

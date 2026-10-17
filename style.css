@@ -89,6 +89,7 @@ button:focus-visible, select:focus-visible, textarea:focus-visible, input:focus-
   to { opacity: 0; }
 }
 
+.hint[hidden] { display: block !important; visibility: hidden; } /* keep the space, so the page does not jump */
 .hint { margin: 10px 0 0; text-align: center; color: var(--accent); font-size: 15px; min-height: 1.4em; overflow-wrap: anywhere; }
 
 .list { display: grid; gap: 8px; }
@@ -102,7 +103,8 @@ button:focus-visible, select:focus-visible, textarea:focus-visible, input:focus-
   gap: 4px 12px;
   align-items: center;
 }
-.card.locked { opacity: 0.45; }
+.card.locked { border-style: dashed; }
+.card.locked .name { color: var(--muted); }
 .card .name { font-weight: 600; }
 .card .desc { color: var(--muted); font-size: 13px; grid-column: 1; }
 .card .stat { color: var(--muted); font-size: 13px; font-variant-numeric: tabular-nums; grid-column: 1; }
@@ -124,7 +126,8 @@ button:focus-visible, select:focus-visible, textarea:focus-visible, input:focus-
 .buy small { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
 .buy:not(:disabled) { border-color: var(--accent); }
 .buy:not(:disabled):hover { background: #232c40; }
-.buy:not(:disabled):not(.max) { animation: ready 2.6s ease-in-out infinite; }
+/* Only the buy buttons for collectors, methods and condensing say "you can afford this". */
+#gens .buy:not(:disabled):not(.max), #ups .buy:not(:disabled), #condense-body .buy:not(:disabled) { animation: ready 2.6s ease-in-out infinite; }
 @keyframes ready {
   0%, 100% { box-shadow: 0 0 0 0 rgba(255, 212, 121, 0); }
   50% { box-shadow: 0 0 10px 1px rgba(255, 212, 121, 0.28); }

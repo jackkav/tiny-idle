@@ -128,7 +128,7 @@ export const HINT_STEPS = [
     ready: (s) => G.canCondense(s),
     text: (s, fmt, ready) => (ready
       ? 'Condense now. Dust, collectors and methods reset. You get grains. Each grain adds +100% to all dust.'
-      : `Gather ${fmt(G.CONDENSE_AT)} kg in one run, then condense.`),
+      : `Gather ${fmt(G.condenseAt(s))} kg in one run, then condense.`),
   },
 ];
 

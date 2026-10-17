@@ -20,6 +20,7 @@ export const RHYTHM_CSS = `
 .rh-card .rh-bonus { color: var(--ok); font-weight: 600; margin-top: 12px; }
 .rh-card .buy { width: 100%; margin-top: 14px; }
 @keyframes rh-in { from { opacity: 0; transform: translateY(10px) scale(0.97); } to { opacity: 1; transform: none; } }
+html[data-motion="reduce"] .rh-core, html[data-motion="reduce"] .rh-card { animation: none; }
 @media (prefers-reduced-motion: reduce) {
   .rh-core, .rh-card { animation: none; }
 }
@@ -92,7 +93,8 @@ export function mountRhythm(root, ctx, R) {
     const ry = r * (1.05 + 0.25 * ev.dist);
     const x = Math.min(z.width - 22, Math.max(22, cx + Math.cos(ev.ang) * rx));
     speck.style.left = `${x.toFixed(1)}px`;
-    speck.style.top = `${(cy + Math.sin(ev.ang) * ry).toFixed(1)}px`;
+    const y = Math.min(z.height - 22, Math.max(22, cy + Math.sin(ev.ang) * ry));
+    speck.style.top = `${y.toFixed(1)}px`;
   }
 
   // Welcome-back panel.
@@ -122,13 +124,19 @@ export function mountRhythm(root, ctx, R) {
   back.addEventListener('pointerdown', (e) => {
     if (e.target === back) close();
   });
-  back.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') close();
-    else if (e.key === 'Tab') {
+  // Listen on the document, in the capture phase, so Escape and the focus trap still work after
+  // a click on the card text moved focus to the body, and no key reaches the game behind.
+  document.addEventListener('keydown', (e) => {
+    if (back.hidden) return;
+    if (e.key === 'Escape') {
       e.preventDefault();
+      close();
+    } else if (e.key === 'Tab' || !card.contains(e.target)) {
+      e.preventDefault();
+      e.stopPropagation();
       go.focus();
     }
-  });
+  }, true);
 
   function showWelcome(w) {
     const t = R.welcomeText(w);
