@@ -1,9 +1,10 @@
 import * as G from './game.js';
-import { fmt, fmtInt, gte, sub, scale } from './num.js';
+import './features/index.js'; // registers every feature before the first state is built
+import * as N from './num.js';
+import { fmt, fmtInt, gte, scale } from './num.js';
 import { describeScale, barFraction } from './scale.js';
 
 const SAVE_KEY = 'smallest-thing-v1';
-const OFFLINE_CAP_S = 12 * 3600;
 const $ = (id) => document.getElementById(id);
 
 // ---- State -----------------------------------------------------------------
@@ -45,11 +46,10 @@ function duration(s) {
 
 // Offline progress.
 {
-  const away = Math.min(OFFLINE_CAP_S, (Date.now() - state.savedAt) / 1000);
+  const away = (Date.now() - state.savedAt) / 1000;
   if (away > 30) {
-    const before = state.dust;
-    G.advance(state, away);
-    toast(`Away ${duration(away)}: +${fmt(sub(state.dust, before))} kg`);
+    const r = G.applyOffline(state, away);
+    toast(`Away ${duration(r.away)}: +${fmt(r.gained)} kg`);
   }
 }
 
@@ -143,6 +143,35 @@ const condenseBtn = buyButton('Condense', () => {
 condenseCard.querySelector('.actions').append(condenseBtn);
 condenseBody.append(condenseCard);
 
+// ---- Features ----------------------------------------------------------------
+// Each feature with a ui gets its own section. mount() returns a render(state) function.
+
+const featureCtx = {
+  getState: () => state,
+  G, N, fmt, fmtInt, toast, save,
+  dom: { tap: tapBtn, floaters: $('floaters'), body: document.body },
+};
+const featureRenders = [];
+for (const f of [...G.getFeatures()].filter((x) => x.ui).sort((a, b) => (a.ui.order ?? 50) - (b.ui.order ?? 50))) {
+  const section = document.createElement('section');
+  section.id = `feature-${f.id}`;
+  if (f.ui.title) {
+    const h = document.createElement('h2');
+    h.textContent = f.ui.title;
+    section.append(h);
+  }
+  const body = document.createElement('div');
+  section.append(body);
+  $('features').append(section);
+  if (f.ui.css) {
+    const style = document.createElement('style');
+    style.textContent = f.ui.css;
+    document.head.append(style);
+  }
+  const r = f.ui.mount(body, featureCtx);
+  if (r) featureRenders.push(() => r(state));
+}
+
 // ---- Rendering -------------------------------------------------------------
 
 const el = {
@@ -187,6 +216,7 @@ function render() {
   });
 
   renderCondense();
+  for (const r of featureRenders) r();
 }
 
 function renderCondense() {
@@ -230,8 +260,9 @@ let lastSave = last;
 function frame(now) {
   const dt = (now - last) / 1000;
   last = now;
-  if (dt > 1) G.advance(state, Math.min(dt, OFFLINE_CAP_S));
+  if (dt > 1) G.applyOffline(state, dt);
   else if (dt > 0) G.tick(state, dt);
+  while (state.notes.length) toast(state.notes.shift());
   if (now - lastRender > 66) {
     lastRender = now;
     render();
@@ -242,12 +273,6 @@ function frame(now) {
   }
   requestAnimationFrame(frame);
 }
-
-let wasUnlocked = state.unlocked.condense;
-setInterval(() => {
-  if (state.unlocked.condense && !wasUnlocked) toast('Condensation unlocked');
-  wasUnlocked = state.unlocked.condense;
-}, 500);
 
 document.addEventListener('visibilitychange', () => {
   if (document.hidden) save();
@@ -262,7 +287,6 @@ $('reset').addEventListener('click', () => {
     // Nothing to clear.
   }
   state = G.newState();
-  wasUnlocked = false;
 });
 
 // Handle for poking at the game from the console while iterating.
