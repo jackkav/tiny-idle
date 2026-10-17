@@ -244,7 +244,7 @@ function renderCondense() {
   gr.className = 'grains';
   gr.textContent = `${fmtInt(state.grains)} grains (x${fmt(G.grainMult(state), 2)})`;
   desc.append(gr, '.');
-  stat.textContent = `One grain per factor of ten above ${fmt(G.CONDENSE_AT)} kg gathered in one run. This run: ${fmt(state.run)} kg.`;
+  stat.textContent = `Needs ${fmt(G.condenseAt(state))} kg gathered in one run. Each factor of ten above that pays ${G.CONDENSE.perOrder} more grains. This run: ${fmt(state.run)} kg.`;
   const ok = G.canCondense(state);
   condenseBtn.disabled = !ok;
   condenseBtn.firstChild.textContent = ok ? `Condense for ${fmtInt(gain)} grains` : 'Condense';

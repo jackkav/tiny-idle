@@ -1,6 +1,6 @@
 // Pure game logic. No DOM, so the browser UI and the tests share the same code.
 import {
-  ZERO, ONE, n, add, sub, mul, div, pow, scale, cmp, gte, floor, log10, toJSON, fromJSON,
+  ZERO, ONE, n, add, sub, mul, div, pow, scale, cmp, gte, floor, log10, toNumber, toJSON, fromJSON,
 } from './num.js';
 
 // One tap is worth 0.01e-99 kg. Everything else is priced in taps.
@@ -8,13 +8,14 @@ export const TAP = n(1e-101);
 const taps = (x) => mul(n(x), TAP);
 
 // Each collector makes the collector one tier below it. Tier 1 makes dust.
+// Prices are in taps. Tier prices rise faster each step, so each tier arrives 40 to 90 seconds after the last.
 export const GENS = [
   { id: 'cling', name: 'Static cling', blurb: 'Dust sticks to dust.', base: 10, growth: 1.4 },
-  { id: 'draft', name: 'Draft', blurb: 'A faint push of air.', base: 300, growth: 2.25 },
-  { id: 'eddy', name: 'Eddy', blurb: 'Air that turns back on itself.', base: 1e4, growth: 2.5 },
-  { id: 'whirl', name: 'Whirl', blurb: 'A small, patient storm.', base: 3e5, growth: 2.75 },
-  { id: 'cyclone', name: 'Cyclone', blurb: 'The room gets involved.', base: 1e7, growth: 3 },
-  { id: 'jet', name: 'Jet stream', blurb: 'The planet gets involved.', base: 3e8, growth: 3.25 },
+  { id: 'draft', name: 'Draft', blurb: 'A faint push of air.', base: 150, growth: 2.25 },
+  { id: 'eddy', name: 'Eddy', blurb: 'Air that turns back on itself.', base: 7e3, growth: 2.5 },
+  { id: 'whirl', name: 'Whirl', blurb: 'A small, patient storm.', base: 1.4e6, growth: 2.75 },
+  { id: 'cyclone', name: 'Cyclone', blurb: 'The room gets involved.', base: 1e9, growth: 3 },
+  { id: 'jet', name: 'Jet stream', blurb: 'The planet gets involved.', base: 2.6e12, growth: 3.25 },
 ];
 
 // Every 10 purchases of a collector doubles its output, up to 10 doublings.
@@ -23,19 +24,24 @@ export const MILESTONE_MAX = 10;
 
 export const UPGRADES = [
   { id: 'grip', name: 'Stickier finger', desc: 'Tap power x2 per level.', base: 25, growth: 5, max: 40 },
-  { id: 'twitch', name: 'Twitchy finger', desc: 'Taps once per second by itself.', base: 400, growth: 1 },
-  { id: 'hummer', name: 'Hummingbird', desc: 'Taps 10 times per second by itself.', base: 2e5, growth: 1, requires: 'twitch' },
-  { id: 'surge1', name: 'Static charge', desc: 'All dust x2.', base: 5e3, growth: 1 },
-  { id: 'surge2', name: 'Magnetism', desc: 'All dust x3.', base: 5e7, growth: 1, requires: 'surge1' },
-  { id: 'surge3', name: 'Gravity well', desc: 'All dust x4.', base: 1e13, growth: 1, requires: 'surge2' },
-  { id: 'surge4', name: 'Tidal lock', desc: 'All dust x5.', base: 1e20, growth: 1, requires: 'surge3' },
+  { id: 'twitch', name: 'Twitchy finger', desc: 'Taps once per second by itself.', base: 600, growth: 1 },
+  { id: 'hummer', name: 'Hummingbird', desc: 'Taps 10 times per second by itself.', base: 3e6, growth: 1, requires: 'twitch' },
+  { id: 'surge1', name: 'Static charge', desc: 'All dust x2.', base: 8e3, growth: 1 },
+  { id: 'surge2', name: 'Magnetism', desc: 'All dust x3.', base: 3e8, growth: 1, requires: 'surge1' },
+  { id: 'surge3', name: 'Gravity well', desc: 'All dust x4.', base: 3e14, growth: 1, requires: 'surge2' },
+  { id: 'surge4', name: 'Tidal lock', desc: 'All dust x5.', base: 4e21, growth: 1, requires: 'surge3' },
 ];
 const SURGE = { surge1: 2, surge2: 3, surge3: 4, surge4: 5 };
 
-// Condensation turns a run's dust into grains. Grains survive a reset.
-// One grain per factor of ten the run beat the threshold by.
-export const CONDENSE_AT = n(1e-70);
-export const METHODS_TO_UNLOCK = 8;
+// Condensation turns a run's dust into grains. Grains survive a reset. Tune it with tools/sim.mjs.
+// - at: kg gathered in one run for the first condensation.
+// - rise, curve: the needed mass is at x 10^(rise x log10(m)^curve), where m is the grain multiplier.
+//   All times scale as 1/m, so the needed mass must rise or the next run would last seconds.
+// - first, firstPow: grains paid at the threshold are first x m^firstPow. Payouts then grow each run.
+// - perOrder: more grains for each factor of ten above the threshold. This is the reward for waiting.
+export const CONDENSE = { at: n(1e-68), rise: 14, curve: 0.7, perOrder: 2, first: 3, firstPow: 0.5 };
+export const CONDENSE_AT = CONDENSE.at;
+export const METHODS_TO_UNLOCK = 10;
 
 // ---- Features ----------------------------------------------------------------
 // A feature is a self-contained mechanic in features/<id>.js. See DESIGN.md for the contract.
@@ -217,11 +223,18 @@ export function checkUnlocks(s) {
   }
 }
 
-// Grains for condensing now: how many orders of magnitude the run is above the threshold.
-// Features can change the result through f.condenseGain(s, gain), which returns a new Num.
+// Grains for condensing now. Features can change the result through f.condenseGain(s, gain), which
+// returns a new Num.
+export function condenseAt(s) {
+  const u = log10(grainMult(s));
+  return mul(CONDENSE.at, pow(n(10), CONDENSE.rise * u ** CONDENSE.curve));
+}
+
 export function condenseGain(s) {
-  if (cmp(s.run, CONDENSE_AT) < 0) return ZERO;
-  let g = floor(n(log10(div(s.run, CONDENSE_AT))));
+  const need = condenseAt(s);
+  if (cmp(s.run, need) < 0) return ZERO;
+  const bonus = scale(pow(grainMult(s), CONDENSE.firstPow), CONDENSE.first);
+  let g = floor(add(bonus, n(CONDENSE.perOrder * log10(div(s.run, need)) + 1e-9)));
   for (const f of features) if (f.condenseGain) g = floor(f.condenseGain(s, g));
   return g;
 }
@@ -231,7 +244,8 @@ export const canCondense = (s) => s.unlocked.condense && gte(condenseGain(s), ON
 export function condense(s) {
   if (!canCondense(s)) return false;
   const gained = condenseGain(s);
-  s.grains = add(s.grains, gained);
+  const total = add(s.grains, gained);
+  s.grains = total.e < 15 ? n(Math.round(toNumber(total))) : total; // keep grains whole numbers
   s.dust = ZERO;
   s.run = ZERO;
   s.gens = GENS.map(() => ({ bought: 0, owned: ZERO }));
