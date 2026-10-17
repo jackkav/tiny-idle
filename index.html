@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0b0d12">
+  <title>Smallest Thing</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%230b0d12'/%3E%3Ccircle cx='16' cy='16' r='3' fill='%23ffd479'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header>
+    <h1>Smallest Thing</h1>
+    <button id="reset" class="quiet" type="button">Reset</button>
+  </header>
+
+  <main>
+    <section id="readout" aria-live="off">
+      <div id="dust" class="big">0</div>
+      <div class="unit">kg of dust</div>
+      <div id="rate" class="muted"></div>
+      <div id="scale" class="muted"></div>
+      <div id="bar" aria-hidden="true"><div id="fill"></div></div>
+      <div id="bar-labels" class="muted" aria-hidden="true"><span>1e-101 kg</span><span>the universe</span></div>
+    </section>
+
+    <section id="tapzone">
+      <button id="tap" type="button" aria-label="Collect dust"><span id="speck"></span></button>
+      <div id="floaters" aria-hidden="true"></div>
+    </section>
+
+    <section id="condense">
+      <h2>Condensation</h2>
+      <div id="condense-body"></div>
+    </section>
+
+    <section>
+      <h2>Collectors</h2>
+      <div id="gens" class="list"></div>
+    </section>
+
+    <section>
+      <h2>Methods</h2>
+      <div id="ups" class="list"></div>
+    </section>
+  </main>
+
+  <div id="toasts" role="status"></div>
+  <script type="module" src="ui.js"></script>
+</body>
+</html>
