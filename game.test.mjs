@@ -119,44 +119,88 @@ test('grip is repeatable up to its cap and doubles tap power each level', () => 
   assert.equal(G.upAvailable(s, 'grip'), false);
 });
 
-test('condensation unlocks at 8 methods and stays unlocked after a reset', () => {
+test('condensation unlocks at the method count and stays unlocked after a reset', () => {
   const s = rich();
   s.dust = N.n(1);
-  for (let k = 0; k < 6; k++) G.buyGen(s, k);
-  assert.equal(s.unlocked.condense, false);
-  G.buyUp(s, 'grip');
+  for (let k = 0; k < G.GENS.length; k++) G.buyGen(s, k);
+  for (const u of G.UPGRADES) {
+    if (G.methodsOwned(s) >= G.METHODS_TO_UNLOCK - 1) break;
+    G.buyUp(s, u.id);
+  }
   G.tick(s, 0.01);
-  assert.equal(s.unlocked.condense, false, '7 methods is not enough');
-  G.buyUp(s, 'twitch');
+  assert.equal(G.methodsOwned(s), G.METHODS_TO_UNLOCK - 1);
+  assert.equal(s.unlocked.condense, false, 'one method short is not enough');
+  const next = G.UPGRADES.find((u) => G.upAvailable(s, u.id) && G.upLevel(s, u.id) === 0);
+  G.buyUp(s, next.id);
   G.tick(s, 0.01);
-  assert.equal(G.methodsOwned(s), 8);
+  assert.equal(G.methodsOwned(s), G.METHODS_TO_UNLOCK);
   assert.equal(s.unlocked.condense, true);
 
-  s.run = N.n(1e-60);
+  s.run = N.n(1);
   assert.ok(G.condense(s));
   assert.equal(G.methodsOwned(s), 0);
   assert.equal(s.unlocked.condense, true);
 });
 
-test('condense pays one grain per order of magnitude above the threshold', () => {
+const readyToCondense = () => {
   const s = G.newState(0);
   s.unlocked.condense = true;
-  s.run = N.n(5e-71);
+  return s;
+};
+const orders = (x) => N.n(10 ** x);
+
+test('the first condensation needs CONDENSE.at kg and pays CONDENSE.first grains', () => {
+  const s = readyToCondense();
+  assert.deepEqual(G.condenseAt(s), G.CONDENSE.at);
+  s.run = N.scale(G.CONDENSE.at, 0.99);
   assert.equal(G.condenseGain(s), N.ZERO, 'below the threshold');
-  s.run = N.n(5e-70);
-  assert.equal(G.canCondense(s), false, 'under one order above the threshold');
-  s.run = N.n(1e-60);
-  assert.equal(N.toNumber(G.condenseGain(s)), 10);
+  assert.equal(G.canCondense(s), false);
+  s.run = G.CONDENSE.at;
+  assert.equal(N.toNumber(G.condenseGain(s)), G.CONDENSE.first);
   assert.ok(G.canCondense(s));
 });
 
-test('condensing resets the run, keeps grains, and grains multiply output', () => {
-  const s = G.newState(0);
-  s.unlocked.condense = true;
-  s.run = N.n(1e-60);
-  s.dust = N.n(1e-60);
+test('each factor of ten above the threshold pays perOrder more grains', () => {
+  const s = readyToCondense();
+  const at = (x) => {
+    s.run = N.mul(G.condenseAt(s), orders(x));
+    return Math.round(N.toNumber(G.condenseGain(s)));
+  };
+  assert.equal(at(0), G.CONDENSE.first);
+  assert.equal(at(1), G.CONDENSE.first + G.CONDENSE.perOrder);
+  assert.equal(at(5), G.CONDENSE.first + 5 * G.CONDENSE.perOrder);
+  assert.equal(at(2.5), G.CONDENSE.first + 5, 'whole grains only, rounded down');
+});
+
+test('the threshold rises with grains by rise x log10(m)^curve orders', () => {
+  const s = readyToCondense();
+  s.grains = N.n(9); // m = 10
+  close(G.condenseAt(s), N.mul(G.CONDENSE.at, orders(G.CONDENSE.rise)));
+  let prev = G.condenseAt(readyToCondense());
+  for (const g of [1, 2, 5, 20, 100, 1e4]) {
+    s.grains = N.n(g);
+    assert.ok(N.cmp(G.condenseAt(s), prev) > 0, `grains ${g}`);
+    prev = G.condenseAt(s);
+  }
+});
+
+test('the payout at the threshold grows with the grain multiplier', () => {
+  const s = readyToCondense();
+  s.grains = N.n(15); // m = 16, m^0.5 = 4 when firstPow is 0.5
+  s.run = G.condenseAt(s);
+  const expected = Math.floor(G.CONDENSE.first * 16 ** G.CONDENSE.firstPow + 1e-9);
+  assert.equal(Math.round(N.toNumber(G.condenseGain(s))), expected);
+  assert.ok(expected > G.CONDENSE.first);
+});
+
+test('condensing resets the run, keeps whole grains, and grains multiply output', () => {
+  const s = readyToCondense();
+  s.run = N.mul(G.CONDENSE.at, orders(3));
+  s.dust = s.run;
   s.gens[0] = { bought: 5, owned: N.n(5) };
   s.ups.grip = 2;
+  const gain = Math.round(N.toNumber(G.condenseGain(s)));
+  assert.ok(gain > 0);
   const before = G.tapValue(s);
   assert.ok(G.condense(s));
   assert.equal(s.dust, N.ZERO);
@@ -164,10 +208,20 @@ test('condensing resets the run, keeps grains, and grains multiply output', () =
   assert.equal(s.gens[0].bought, 0);
   assert.deepEqual(s.ups, {});
   assert.equal(s.condenses, 1);
-  assert.equal(N.toNumber(s.grains), 10);
-  // 10 grains give x11, and the grip upgrade is gone.
-  close(G.tapValue(s), N.scale(G.TAP, 11));
+  assert.equal(N.toNumber(s.grains), gain);
+  assert.ok(Number.isInteger(N.toNumber(s.grains)));
+  close(G.tapValue(s), N.scale(G.TAP, 1 + gain));
   assert.ok(N.cmp(G.tapValue(s), before) !== 0);
+});
+
+test('grains stay whole numbers over many condensations', () => {
+  const s = readyToCondense();
+  for (let i = 0; i < 30; i++) {
+    s.run = N.mul(G.condenseAt(s), orders(1.7));
+    G.condense(s);
+  }
+  assert.equal(s.condenses, 30);
+  assert.equal(Math.round(N.toNumber(s.grains)), N.toNumber(s.grains));
 });
 
 test('condense refuses when the gain is under one grain', () => {
