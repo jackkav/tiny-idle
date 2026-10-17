@@ -29,7 +29,8 @@ test('active player: condense unlocks at about 5 to 6 minutes and pays at about 
   for (const bot of ['greedy', 'best']) {
     const r = firstRun(bot);
     within(r.unlockTime, 4.5 * MIN, 6.5 * MIN, `${bot} unlock`);
-    within(r.thresholdTime, 7.5 * MIN, 10.5 * MIN, `${bot} threshold`);
+    // Feature bonuses (landmarks, achievements) make the first run a little faster than the bare core.
+    within(r.thresholdTime, 6.5 * MIN, 10.5 * MIN, `${bot} threshold`);
     assert.ok(r.unlockTime < r.thresholdTime, 'unlock comes before the threshold');
   }
 });

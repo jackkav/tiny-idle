@@ -143,7 +143,7 @@ test('hints go in order and each one finishes for good', () => {
   t.s.dust = N.n(1e-90);
   assert.match(hint(t), /higher collector/);
   G.buyGen(t.s, 1);
-  assert.match(hint(t), /^Own 8 different/);
+  assert.match(hint(t), new RegExp(`^Own ${G.METHODS_TO_UNLOCK} different`));
   t.s.unlocked.condense = true;
   assert.match(hint(t), /^Gather /);
   t.s.run = N.n(1e-60);

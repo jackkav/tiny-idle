@@ -216,12 +216,13 @@ test('hooks: dense, wide and deep change the core numbers', () => {
 test('hooks: lens raises condense gain', () => {
   const s = withPebbles(100);
   s.unlocked.condense = true;
-  s.run = N.n(1e-60); // 10 orders above the threshold
-  assert.equal(N.toNumber(G.condenseGain(s)), 10);
+  s.run = N.mul(G.condenseAt(s), N.n(1e10));
+  const plain = N.toNumber(G.condenseGain(s));
+  assert.ok(plain >= 10);
   C.place(s, 4, LENS);
   C.place(s, 4, LENS);
   const k = 1 + 0.1 * C.kindScores(s.f.compaction.grid)[LENS];
-  assert.equal(N.toNumber(G.condenseGain(s)), Math.floor(10 * k));
+  assert.equal(N.toNumber(G.condenseGain(s)), Math.floor(plain * k));
 });
 
 test('save and load keep the lattice, pebbles and count', () => {

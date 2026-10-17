@@ -147,21 +147,26 @@ test('speed stops at the maximum level', () => {
   assert.equal(A.buySpeed(s), false);
 });
 
+const above = (s, orders) => N.mul(G.condenseAt(s), N.n(10 ** orders));
+
 test('auto-condense is locked early, honours its minimum gain, then condenses', () => {
   const early = make({ grains: A.AUTO_CONDENSE_GRAINS - 1 });
   assert.equal(A.setCond(early, { on: true }), false);
 
   const s = make({ grains: A.AUTO_CONDENSE_GRAINS });
   s.unlocked.condense = true;
-  assert.equal(A.setCond(s, { on: true, min: 5 }), true);
-  s.run = N.mul(G.CONDENSE_AT, N.n(1e3)); // gain 3
+  assert.equal(A.setCond(s, { on: true, min: 20 }), true);
+  s.run = above(s, 1);
   s.dust = s.run;
+  assert.ok(N.toNumber(G.condenseGain(s)) < 20, 'under the minimum gain');
   assert.equal(A.runAutoCondense(s), false);
-  s.run = N.mul(G.CONDENSE_AT, N.n(1e6)); // gain 6
+  s.run = above(s, 6);
   s.dust = s.run;
   const grainsBefore = N.toNumber(s.grains);
+  const gain = N.toNumber(G.condenseGain(s));
+  assert.ok(gain >= 20);
   assert.equal(A.runAutoCondense(s), true);
-  assert.equal(N.toNumber(s.grains), grainsBefore + 6);
+  assert.equal(N.toNumber(s.grains), grainsBefore + gain);
   assert.equal(s.dust, N.ZERO);
   assert.equal(s.condenses, 21);
 });
@@ -169,7 +174,7 @@ test('auto-condense is locked early, honours its minimum gain, then condenses', 
 test('auto-condense does nothing when switched off', () => {
   const s = make({ grains: A.AUTO_CONDENSE_GRAINS });
   s.unlocked.condense = true;
-  s.run = N.mul(G.CONDENSE_AT, N.n(1e9));
+  s.run = above(s, 9);
   assert.equal(A.runAutoCondense(s), false);
 });
 
@@ -178,7 +183,7 @@ test('a condense clears timers and nothing is bought into the reset', () => {
   s.unlocked.condense = true;
   A.setCond(s, { on: true, min: 1 });
   s.f.automation.reserve.gen0 = 0;
-  s.run = N.mul(G.CONDENSE_AT, N.n(1e5));
+  s.run = above(s, 5);
   s.f.automation.timers.gen0 = A.INTERVAL_BASE * 0.9;
   // The buyer fires first (timer crosses the interval) and then auto-condense wipes the run.
   A.step(s, A.INTERVAL_BASE * 0.2);
@@ -226,7 +231,7 @@ test('save and load keep settings and drop garbage', () => {
 test('autobuyer settings survive a condense', () => {
   const s = make({ grains: 50, dust: 1e6, on: ['gen0'] });
   s.unlocked.condense = true;
-  s.run = N.mul(G.CONDENSE_AT, N.n(1e4));
+  s.run = above(s, 4);
   assert.ok(G.condense(s));
   assert.deepEqual(A.activeIds(s), ['gen0']); // settings survive the reset
 });

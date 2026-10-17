@@ -393,7 +393,7 @@ test('the offer resets in the next condense', () => {
   s.run = N.n(1e-60);
   G.condense(s);
   C.pickFocus(s, fsOf(s).offer[0]);
-  s.run = N.n(1e-60);
+  s.run = N.mul(G.condenseAt(s), N.n(1e3)); // the threshold rises with grains
   G.condense(s);
   assert.equal(fsOf(s).pick, null);
   assert.equal(fsOf(s).offerRun, 2);
