@@ -26,6 +26,8 @@ node --test game.test.mjs
 | `game.js` | All rules and numbers: collectors, methods, condensation, save format. No DOM. |
 | `scale.js` | Real-world mass landmarks and the progress bar position. |
 | `ui.js` | DOM, input, game loop, autosave, offline progress. |
+| `features/ux.js` | Hints, settings panel, sound, tap effects, page color (DOM side). |
+| `features/ux-logic.js` | Pure rules for the above: settings, save strings, hints, color. |
 | `game.test.mjs` | Tests for our own logic. |
 
 New runtime modules must be added to the copy step in `.github/workflows/pages.yml`.

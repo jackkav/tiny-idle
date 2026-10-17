@@ -101,11 +101,52 @@ export function toNumber(a) {
 }
 
 // Display. Plain decimals for 0.01 up to 999999, scientific notation outside that.
-export function fmt(a, digits = 2) {
+export const NOTATIONS = ['sci', 'eng', 'words'];
+let notation = 'sci';
+export const getNotation = () => notation;
+export function setNotation(mode) {
+  notation = NOTATIONS.includes(mode) ? mode : 'sci';
+  return notation;
+}
+
+const WORD_NAMES = {
+  6: 'million', 9: 'billion', 12: 'trillion', 15: 'quadrillion', 18: 'quintillion',
+  21: 'sextillion', 24: 'septillion', 27: 'octillion', 30: 'nonillion', 33: 'decillion',
+};
+
+// Mantissa in [1, 1000) with three significant figures, and the exponent in steps of 3.
+// Rounding can reach 1000. Then it moves up one step.
+function groupOfThree(a) {
+  let e3 = Math.floor(a.e / 3) * 3;
+  let m = a.m * 10 ** (a.e - e3);
+  let int = a.e - e3 + 1; // digits before the point: 1, 2 or 3
+  let text = m.toFixed(3 - int);
+  if (Number(text) >= 10 ** int) {
+    // rounding added a digit, for example 99.99 became 100
+    int += 1;
+    if (int > 3) {
+      e3 += 3;
+      m = 1;
+      int = 1;
+    }
+    text = m.toFixed(3 - int);
+  }
+  return [text, e3];
+}
+
+export function fmt(a, digits = 2, mode = notation) {
   if (a.m === 0) return '0';
   if (a.e >= -2 && a.e < 6) {
     const v = a.m * 10 ** a.e;
     return v.toFixed(Math.max(0, digits - a.e));
+  }
+  if (mode === 'eng') {
+    const [text, e3] = groupOfThree(a);
+    return `${text}e${e3}`;
+  }
+  if (mode === 'words' && a.e >= 6) {
+    const [text, e3] = groupOfThree(a);
+    if (WORD_NAMES[e3]) return `${text} ${WORD_NAMES[e3]}`;
   }
   let m = a.m.toFixed(digits);
   let e = a.e;
@@ -113,10 +154,9 @@ export function fmt(a, digits = 2) {
     m = (1).toFixed(digits);
     e += 1;
   }
-  return `${m}e${e}`;
+  return mode === 'words' ? `${m} x 10^${e}` : `${m}e${e}`;
 }
 
-// Whole-number display: digits with separators while small, scientific beyond a billion.
 export function fmtInt(a) {
   if (a.e < 9) return Math.round(toNumber(a)).toLocaleString('en-US');
   return fmt(a, 2);

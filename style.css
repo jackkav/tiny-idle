@@ -12,20 +12,25 @@
 * { box-sizing: border-box; }
 
 html, body { margin: 0; background: var(--bg); color: var(--text); }
+body { transition: background-color 1.2s ease; }
 body {
   font: 16px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif;
-  padding: 0 var(--gutter) calc(48px + env(safe-area-inset-bottom));
+  padding: 0 max(var(--gutter), env(safe-area-inset-right)) calc(48px + env(safe-area-inset-bottom)) max(var(--gutter), env(safe-area-inset-left));
   max-width: 720px;
   margin: 0 auto;
   -webkit-tap-highlight-color: transparent;
 }
 
-header { display: flex; align-items: center; justify-content: space-between; padding: 14px 0 6px; }
+header { display: flex; align-items: center; justify-content: space-between; padding: calc(14px + env(safe-area-inset-top)) 0 6px; }
 h1 { font-size: 15px; letter-spacing: 0.12em; text-transform: uppercase; margin: 0; color: var(--muted); font-weight: 600; }
 h2 { font-size: 13px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); margin: 28px 0 10px; font-weight: 600; }
 
 button { font: inherit; color: inherit; }
 button.quiet { background: none; border: 0; color: var(--muted); padding: 8px 0 8px 12px; cursor: pointer; font-size: 13px; }
+button.icon { background: none; border: 0; color: var(--muted); width: 44px; height: 44px; margin: -8px -12px -8px 0; display: grid; place-items: center; cursor: pointer; border-radius: 10px; }
+button.icon:hover { color: var(--text); }
+
+button:focus-visible, select:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 #readout { text-align: center; padding-top: 10px; }
 .big { font-size: clamp(34px, 11vw, 60px); font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: -0.02em; color: var(--accent); overflow-wrap: anywhere; }
@@ -74,10 +79,17 @@ button.quiet { background: none; border: 0; color: var(--muted); padding: 8px 0 
   white-space: nowrap;
   animation: rise 900ms ease-out forwards;
 }
+.floater.big-floater { font-weight: 700; text-shadow: 0 0 8px rgba(255, 212, 121, 0.6); }
 @keyframes rise {
   from { opacity: 1; transform: translate(-50%, 0); }
-  to { opacity: 0; transform: translate(-50%, -56px); }
+  to { opacity: 0; transform: translate(calc(-50% + var(--dx, 0px)), calc(-1 * var(--rise, 56px))); }
 }
+@keyframes fadeout {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+.hint { margin: 10px 0 0; text-align: center; color: var(--accent); font-size: 15px; min-height: 1.4em; overflow-wrap: anywhere; }
 
 .list { display: grid; gap: 8px; }
 .card {
@@ -112,6 +124,11 @@ button.quiet { background: none; border: 0; color: var(--muted); padding: 8px 0 
 .buy small { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
 .buy:not(:disabled) { border-color: var(--accent); }
 .buy:not(:disabled):hover { background: #232c40; }
+.buy:not(:disabled):not(.max) { animation: ready 2.6s ease-in-out infinite; }
+@keyframes ready {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(255, 212, 121, 0); }
+  50% { box-shadow: 0 0 10px 1px rgba(255, 212, 121, 0.28); }
+}
 .buy:disabled { opacity: 0.5; cursor: default; }
 .buy.max { min-width: 52px; }
 
@@ -124,8 +141,55 @@ button.quiet { background: none; border: 0; color: var(--muted); padding: 8px 0 
 .toast { background: #202839; border: 1px solid var(--line); border-radius: 10px; padding: 8px 14px; font-size: 14px; animation: fade 4s ease forwards; max-width: 100%; }
 @keyframes fade { 0%, 85% { opacity: 1; } 100% { opacity: 0; } }
 
-@media (prefers-reduced-motion: reduce) {
-  .floater { animation-duration: 1ms; }
-  #tap { transition: none; }
+/* Small phones: stack the buttons under the text. */
+@media (max-width: 380px) {
+  .card { grid-template-columns: 1fr; }
+  .card .actions { grid-column: 1; grid-row: auto; }
+  .card .actions .buy:not(.max) { flex: 1; min-width: 0; }
+  .big { font-size: clamp(30px, 11vw, 60px); }
 }
+
+/* Settings dialog */
+dialog#settings {
+  width: min(92vw, 440px);
+  max-height: 90vh;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--panel);
+  color: var(--text);
+  overflow: auto;
+}
+dialog#settings::backdrop { background: rgba(0, 0, 0, 0.6); }
+.dlg-body { padding: 4px 18px 18px; }
+.dlg-body h2 { margin-top: 18px; }
+.field { margin: 0 0 16px; }
+.field label { display: block; font-weight: 600; margin-bottom: 4px; }
+.field.check { display: grid; grid-template-columns: auto 1fr; gap: 0 10px; align-items: center; }
+.field.check label { margin: 0; padding: 8px 0; }
+.field.check input { width: 22px; height: 22px; margin: 0; accent-color: var(--accent); }
+.field.check .muted { grid-column: 2; }
+select, textarea {
+  width: 100%;
+  font: inherit;
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px 10px;
+  min-height: 44px;
+}
+textarea { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 12px; min-height: 0; resize: vertical; overflow-wrap: anywhere; }
+.row { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0 0; }
+.row.end { justify-content: space-between; margin-top: 20px; }
+button.plain { min-height: 44px; padding: 8px 14px; background: #1d2433; border: 1px solid var(--line); border-radius: 10px; cursor: pointer; }
+button.plain:hover { background: #232c40; }
+button.danger { color: #ff9a9a; }
+#save-msg { min-height: 1.4em; margin-top: 6px; }
+
+/* Reduced motion. The script sets data-motion from the system setting or the player's choice. */
+html[data-motion="reduce"] body { transition: none; }
+html[data-motion="reduce"] .floater { animation: fadeout 600ms ease-out forwards; }
+html[data-motion="reduce"] .buy { animation: none !important; }
+html[data-motion="reduce"] #tap { transition: none; }
 [hidden] { display: none !important; }
