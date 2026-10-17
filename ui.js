@@ -38,19 +38,11 @@ function toast(text) {
   setTimeout(() => el.remove(), 4000);
 }
 
-function duration(s) {
-  const h = Math.floor(s / 3600);
-  const m = Math.floor((s % 3600) / 60);
-  return h > 0 ? `${h}h ${m}m` : `${m}m ${Math.floor(s % 60)}s`;
-}
-
-// Offline progress.
+// Offline progress. The rhythm feature shows the return message (toast or
+// welcome panel) from the onReturn hook.
 {
   const away = (Date.now() - state.savedAt) / 1000;
-  if (away > 30) {
-    const r = G.applyOffline(state, away);
-    toast(`Away ${duration(r.away)}: +${fmt(r.gained)} kg`);
-  }
+  if (away > 30) G.applyOffline(state, away);
 }
 
 // ---- Tapping ---------------------------------------------------------------
