@@ -1,5 +1,5 @@
 // Real masses (kg, rounded) used to give the dust amount a sense of size.
-import { log10, fmt, make } from './num.js';
+import { log10, fmt, make, n } from './num.js';
 
 const RAW = [
   { name: 'an electron', kg: 9.1e-31 },
@@ -22,10 +22,38 @@ export const LANDMARKS = RAW.map((r) => ({ ...r, exp: Math.log10(r.kg) }));
 export const SCALE_MIN = -101;
 export const SCALE_MAX = 54;
 
+// Landmarks lighter than an electron. Real physics bounds and derived values, rounded.
+// describeScale does not use them. The Scale panel and the bar ticks do.
+// The first one is the mass of a quantum whose wavelength is about the size of the universe.
+const SUB = [
+  { name: 'a quantum as wide as the universe', kg: 2e-68 },
+  { name: 'the graviton mass limit', kg: 2e-58 },
+  { name: 'the photon mass limit', kg: 1.8e-54 },
+  { name: 'a neutrino (upper limit)', kg: 1.8e-37 },
+  { name: 'a green photon, as mass', kg: 4.1e-36 },
+];
+
+// Every landmark in order of mass. `at` is the mass as a Num. `exp` is log10 of the mass.
+export const LADDER = [...SUB.map((r) => ({ ...r, exp: Math.log10(r.kg) })), ...LANDMARKS]
+  .map((r) => ({ ...r, at: n(r.kg) }))
+  .sort((a, b) => a.exp - b.exp);
+
+const fracOfExp = (l) => Math.min(1, Math.max(0, (l - SCALE_MIN) / (SCALE_MAX - SCALE_MIN)));
+
+// Bar position (0 to 1) of every landmark on the ladder, for tick marks.
+export const landmarkTicks = () => LADDER.map((lm, index) => ({ index, name: lm.name, frac: fracOfExp(lm.exp) }));
+
+// Orders of magnitude from an amount of dust up to a landmark. Never negative.
+// Zero dust counts as the start speck (SCALE_MIN).
+export function ordersTo(dust, lm) {
+  const l = Math.max(SCALE_MIN, log10(dust));
+  return Math.max(0, lm.exp - l);
+}
+
 export const barFraction = (dust) => {
   const l = log10(dust);
   if (!Number.isFinite(l)) return 0;
-  return Math.min(1, Math.max(0, (l - SCALE_MIN) / (SCALE_MAX - SCALE_MIN)));
+  return fracOfExp(l);
 };
 
 // One line comparing the dust to the nearest landmark below or above it.
