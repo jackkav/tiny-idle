@@ -141,6 +141,7 @@ condenseBody.append(condenseCard);
 const featureCtx = {
   getState: () => state,
   G, N, fmt, fmtInt, toast, save,
+  replaceState: (next) => { state = next; },
   dom: { tap: tapBtn, floaters: $('floaters'), body: document.body },
 };
 const featureRenders = [];
