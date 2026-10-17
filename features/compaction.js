@@ -292,7 +292,7 @@ G.registerFeature({
           b.classList.toggle('filled', cell.size > 0);
           if (order >= open) {
             b.firstChild.textContent = 'Locked';
-            b.querySelector('small').textContent = `Compaction ${order - SLOTS_BASE + 1}`;
+            b.querySelector('small').textContent = `After compaction ${order - SLOTS_BASE + 1}`;
           } else if (cell.size > 0) {
             b.firstChild.textContent = `${KINDS[cell.kind].name} ${cell.size}`;
             b.querySelector('small').textContent = `score ${slotScore(fs.grid, i).toFixed(2)}`;
