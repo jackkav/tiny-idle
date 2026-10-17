@@ -5,6 +5,13 @@ import * as N from '../num.js';
 import './index.js';
 import * as C from './challenges.js';
 
+// Other features change the same numbers (multipliers, costs, speed). These tests check the
+// challenges feature alone, so remove the number hooks of every other feature in this process.
+for (const f of G.getFeatures()) {
+  if (f.id === 'challenges') continue;
+  for (const h of ['globalMult', 'genMult', 'tapMult', 'costMult', 'autoTaps', 'speed']) delete f[h];
+}
+
 const close = (a, b, msg = '') => assert.ok(
   Math.abs(N.log10(a) - N.log10(b)) < 1e-9,
   `${msg} ${N.fmt(a, 6)} vs ${N.fmt(b, 6)}`,
