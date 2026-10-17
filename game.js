@@ -243,6 +243,18 @@ export function condense(s) {
 
 // ---- Save and load ---------------------------------------------------------
 
+// Layer 3 helper: wipe everything below layer 3 (dust, collectors, methods, grains, condense count).
+// Features reset their per-run state through onCondense, called with a zero gain.
+export function resetBelow(s) {
+  s.dust = ZERO;
+  s.run = ZERO;
+  s.gens = GENS.map(() => ({ bought: 0, owned: ZERO }));
+  s.ups = {};
+  s.grains = ZERO;
+  s.condenses = 0;
+  hook('onCondense', s, ZERO);
+}
+
 export function toSave(s) {
   return {
     v: 1,
